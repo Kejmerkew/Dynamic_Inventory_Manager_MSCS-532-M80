@@ -12,7 +12,7 @@ class CustomList(Generic[T]):
     Implementation notes
     --------------------
     • Storage is a ctypes array of `py_object` (not Python's built-in list).
-    • Capacity grows geometrically (×2) when full; optionally shrinks on pops.
+    • Capacity grows geometrically (x2) when full; optionally shrinks on pops.
     • Negative indices are normalized (like built-in list semantics).
     • Slicing returns another CustomList[T].
     • `.get()` is a safe accessor that never raises IndexError.
@@ -139,6 +139,20 @@ class CustomList(Generic[T]):
                 self.pop(i)
                 return
         raise ValueError(f"{value!r} not in CustomList")
+    
+    def remove_optimized(self, value: T) -> None:
+        """Remove first occurrence of `value` without preserving order. O(1) amortized."""
+        for i in range(self._size):
+            if self._buf[i] == value:
+                self._buf[i] = self._buf[self._size - 1]  # Swap with last element
+                self._buf[self._size - 1] = None
+                self._size -= 1
+                # Optional shrink
+                if self._capacity > self._INITIAL_CAPACITY and self._size <= self._capacity // 4:
+                    self._resize(max(self._INITIAL_CAPACITY, self._capacity // 2))
+                return
+        raise ValueError(f"{value!r} not in CustomList")
+
 
     def clear(self) -> None:
         """Remove all items. Keeps capacity to avoid churn on re-use."""

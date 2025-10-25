@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Generic, Iterator, Optional, Tuple, TypeVar
+from typing import Generic, Iterator, Optional, Tuple, TypeVar, Iterable
 
 from .linked_list import LinkedList
 
@@ -8,13 +8,13 @@ V = TypeVar("V")
 
 
 class HashMap(Generic[K, V]):
-    """A separate-chaining hash table.
+    """A high-performance separate-chaining hash table.
 
-    *This maintains the spirit of your original implementation with improvements:*
-    - Input validation for capacity/load factor
-    - Clear docs and type hints
-    - Iteration helpers for keys/values/items
-    - Resize on threshold and power-of-two optimization when possible
+    Optimizations:
+    - Resize inserts directly into new buckets to avoid repeated _resize checks.
+    - Bulk insertion precomputes final capacity and inserts efficiently.
+    - Lazy bucket creation to reduce memory for sparse tables.
+    - Supports fast iteration over keys, values, and items.
     """
 
     __slots__ = ("_cap", "_load", "_buckets", "_size")
@@ -26,27 +26,43 @@ class HashMap(Generic[K, V]):
             raise ValueError("load_factor must be in [0.1, 1.0)")
         self._cap: int = capacity
         self._load: float = load_factor
-        self._buckets: list[LinkedList[K, V]] = [LinkedList() for _ in range(self._cap)]
+        # Lazy bucket creation: only create LinkedList when needed
+        self._buckets: list[Optional[LinkedList[K, V]]] = [None] * self._cap
         self._size: int = 0
 
+    # -----------------------------
+    # Internal helpers
+    # -----------------------------
     def _bucket_index(self, key: K) -> int:
-        # Power-of-two fast path if capacity is a power of two; otherwise fallback to modulo
+        """Compute bucket index for a key (power-of-two optimization)."""
         h = hash(key)
         return h & (self._cap - 1) if (self._cap & (self._cap - 1)) == 0 else h % self._cap
 
     def _resize(self) -> None:
-        # Double capacity and rehash all existing entries
+        """Double the capacity and rehash all entries directly."""
         old_buckets = self._buckets
         self._cap *= 2
-        self._buckets = [LinkedList() for _ in range(self._cap)]
+        self._buckets = [None] * self._cap
         self._size = 0
-        for ll in old_buckets:
-            for k, v in ll.items():
-                self.set(k, v)
 
+        for bucket in old_buckets:
+            if bucket is None:
+                continue
+            for k, v in bucket.items():
+                idx = self._bucket_index(k)
+                if self._buckets[idx] is None:
+                    self._buckets[idx] = LinkedList()
+                self._buckets[idx].insert_or_replace(k, v)
+                self._size += 1
+
+    # -----------------------------
+    # Core operations
+    # -----------------------------
     def set(self, key: K, value: V) -> None:
-        """Insert or update *key* with *value*. Resizes when load factor exceeded."""
+        """Insert or update key-value pair."""
         idx = self._bucket_index(key)
+        if self._buckets[idx] is None:
+            self._buckets[idx] = LinkedList()
         inserted = self._buckets[idx].insert_or_replace(key, value)
         if inserted:
             self._size += 1
@@ -54,27 +70,53 @@ class HashMap(Generic[K, V]):
                 self._resize()
 
     def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
-        """Return value for *key* if present; otherwise *default*."""
+        """Retrieve value for key or return default."""
         idx = self._bucket_index(key)
-        v = self._buckets[idx].find(key)
+        bucket = self._buckets[idx]
+        if bucket is None:
+            return default
+        v = bucket.find(key)
         return default if v is None else v
 
     def contains(self, key: K) -> bool:
-        """True if *key* is present in the map."""
+        """Check if key exists in the map."""
         idx = self._bucket_index(key)
-        return self._buckets[idx].find(key) is not None
+        bucket = self._buckets[idx]
+        return bucket.find(key) is not None if bucket else False
 
     def delete(self, key: K) -> bool:
-        """Remove *key* if present. Returns True on success, False otherwise."""
+        """Remove key if present."""
         idx = self._bucket_index(key)
-        if self._buckets[idx].delete(key):
+        bucket = self._buckets[idx]
+        if bucket and bucket.delete(key):
             self._size -= 1
             return True
         return False
 
+    # -----------------------------
+    # Bulk insertion
+    # -----------------------------
+    def bulk_set(self, items: Iterable[Tuple[K, V]]) -> None:
+        """Insert multiple key-value pairs efficiently."""
+        if not isinstance(items, (list, tuple)):
+            items = list(items)
+        needed_capacity = int(len(items) / self._load) + 1
+        if needed_capacity > self._cap:
+            while self._cap < needed_capacity:
+                self._cap *= 2
+            self._buckets = [None] * self._cap
+            self._size = 0
+
+        for k, v in items:
+            self.set(k, v)
+
+    # -----------------------------
+    # Iteration helpers
+    # -----------------------------
     def items(self) -> Iterator[Tuple[K, V]]:
-        for ll in self._buckets:
-            yield from ll.items()
+        for bucket in self._buckets:
+            if bucket:
+                yield from bucket.items()
 
     def keys(self) -> Iterator[K]:
         for k, _ in self.items():
@@ -84,6 +126,9 @@ class HashMap(Generic[K, V]):
         for _, v in self.items():
             yield v
 
+    # -----------------------------
+    # Standard magic methods
+    # -----------------------------
     def __len__(self) -> int:  # pragma: no cover - trivial
         return self._size
 

@@ -5,67 +5,91 @@ T = TypeVar("T")
 
 
 class MinHeap(Generic[T]):
-    """A binary min-heap.
-
-    Assumes that stored elements are mutually comparable (support ``<`` and ``<=``).
-    """
+    """A binary min-heap with optional bulk heapify support."""
 
     __slots__ = ("_data",)
 
     def __init__(self, it: Optional[Iterable[T]] = None) -> None:
         self._data: List[T] = []
         if it:
-            for x in it:
-                self.push(x)
+            self._data = list(it)
+            self._heapify()  # Bulk build in O(n) instead of repeated pushes
 
+    # -----------------------------
+    # Internal helpers
+    # -----------------------------
     def _sift_up(self, idx: int) -> None:
+        data = self._data
         while idx > 0:
             parent = (idx - 1) // 2
-            if self._data[parent] <= self._data[idx]:
+            if data[parent] <= data[idx]:
                 break
-            self._data[parent], self._data[idx] = self._data[idx], self._data[parent]
+            data[parent], data[idx] = data[idx], data[parent]
             idx = parent
 
     def _sift_down(self, idx: int) -> None:
-        n = len(self._data)
+        data = self._data
+        n = len(data)
         while True:
             left = 2 * idx + 1
             right = 2 * idx + 2
             smallest = idx
-            if left < n and self._data[left] < self._data[smallest]:
+            if left < n and data[left] < data[smallest]:
                 smallest = left
-            if right < n and self._data[right] < self._data[smallest]:
+            if right < n and data[right] < data[smallest]:
                 smallest = right
             if smallest == idx:
                 break
-            self._data[idx], self._data[smallest] = self._data[smallest], self._data[idx]
+            data[idx], data[smallest] = data[smallest], data[idx]
             idx = smallest
 
+    def _heapify(self) -> None:
+        """Transform the current list into a heap in-place in O(n) time."""
+        n = len(self._data)
+        for i in reversed(range(n // 2)):
+            self._sift_down(i)
+
+    # -----------------------------
+    # Public API
+    # -----------------------------
     def push(self, item: T) -> None:
-        """Push *item* onto the heap."""
+        """Push item onto the heap (O(log n))."""
         self._data.append(item)
         self._sift_up(len(self._data) - 1)
 
     def pop(self) -> T:
-        """Pop and return the smallest item.
-
-        Raises:
-            IndexError: if the heap is empty.
-        """
+        """Pop and return the smallest item (O(log n))."""
         if not self._data:
             raise IndexError("pop from empty heap")
-        top = self._data[0]
-        last = self._data.pop()
-        if self._data:
-            self._data[0] = last
+        data = self._data
+        top = data[0]
+        last = data.pop()
+        if data:
+            data[0] = last
             self._sift_down(0)
         return top
 
     def peek(self) -> Optional[T]:
-        """Return the smallest item without removing it, or None if empty."""
+        """Return the smallest item without removing it (O(1))."""
         return self._data[0] if self._data else None
 
-    def __len__(self) -> int:  # pragma: no cover - trivial
+    def replace(self, item: T) -> T:
+        """Pop and return the smallest item, then push a new item (O(log n))."""
+        if not self._data:
+            raise IndexError("replace on empty heap")
+        top = self._data[0]
+        self._data[0] = item
+        self._sift_down(0)
+        return top
+
+    def pushpop(self, item: T) -> T:
+        """Push item then pop smallest in a single O(log n) operation."""
+        if self._data and self._data[0] < item:
+            item, self._data[0] = self._data[0], item
+            self._sift_down(0)
+        return item
+
+    def __len__(self) -> int:
         return len(self._data)
 
     def __bool__(self) -> bool:  # pragma: no cover - trivial
