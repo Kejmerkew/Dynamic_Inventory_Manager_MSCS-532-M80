@@ -1,0 +1,6 @@
+inventory\__pycache__
+inventory\business\__pycache__
+inventory\dao\__pycache__
+inventory\datastructures\__pycache__
+inventory\db\__pycache__
+tests\__pycache__
