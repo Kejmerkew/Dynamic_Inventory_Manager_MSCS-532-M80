@@ -1,0 +1,2 @@
+id,sku,name,category,price,min_price,max_price,quantity,reorder_level,is_active,is_promo_active,created_at,updated_at,reviews_count,items_sold_count,discount_rate
+1,P001,Widget,Tools,9.5,8.0,12.0,50,10,1,0,2025-10-25T17:16:30Z,2025-10-25T17:16:36Z,0,0,0.0

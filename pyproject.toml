@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inventory"
+version = "0.1.0"
+description = "Inventory application using data structures: list, linked list, hash map, dict wrapper, min-heap"
+authors = [{ name = "Group Project" }]
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[tool.setuptools.packages.find]
+where = ["inventory"]
